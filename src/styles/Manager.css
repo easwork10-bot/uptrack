@@ -147,6 +147,68 @@
   position: relative;
   height: fit-content;
 }
+/* ============================================================
+   MANAGER LOGIN UI
+============================================================ */
+
+.manager-section {
+  margin-top: 1.5rem;
+  text-align: center;
+}
+
+.manager-btn {
+  background: #ffffff;
+  border: 2px solid #f22c00;
+  color: #f22c00;
+  padding: 0.8rem 1.4rem;
+  border-radius: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  font-size: 1rem;
+  transition: 0.2s ease;
+}
+
+.manager-btn:hover {
+  background: #ffe5e0;
+}
+
+.manager-login-box {
+  margin-top: 1rem;
+}
+
+.manager-input {
+  width: 80%;
+  text-align: center;
+  padding: 0.6rem 0.8rem;
+  margin-bottom: 0.7rem;
+  border-radius: 10px;
+  border: 1px solid #ccc;
+  font-size: 1rem;
+}
+
+.manager-login-btn {
+  background: #f22c00;
+  color: white;
+  border: none;
+  padding: 0.8rem 1.2rem;
+  border-radius: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  font-size: 1rem;
+  transition: 0.2s ease;
+}
+
+.manager-login-btn:hover {
+  background: #c71f00;
+}
+
+/* Manager wrong password message */
+.manager-error {
+  margin-top: 0.5rem;
+  color: #c50000;
+  font-weight: 600;
+}
+
 
 /* ============================================================
    RESPONSIVE — iPad-first

@@ -239,9 +239,13 @@ export default function ManagerDashboard() {
                   {upsells.map((u) => (
                     <tr key={u.id}>
                       <td>
-                        {new Date(u.created_at).toLocaleTimeString("sv-SE", {
+                        {new Date(u.created_at).toLocaleString("sv-SE", {
+                          year: "numeric",
+                          month: "2-digit",
+                          day: "2-digit",
                           hour: "2-digit",
                           minute: "2-digit",
+
                         })}
                       </td>
                       <td>{u.employee_name}</td>
@@ -250,6 +254,7 @@ export default function ManagerDashboard() {
                     </tr>
                   ))}
                 </tbody>
+
               </table>
             )}
           </div>

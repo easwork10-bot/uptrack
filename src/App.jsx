@@ -6,7 +6,6 @@ export default function App() {
     <div className="home-wrapper">
       <div className="home-card">
         <h1 className="home-title">🍟 McUpsell</h1>
-        <p className="home-subtitle">Simple upsell tracking</p>
 
         <Link to="/login">
           <button className="home-btn">Login</button>

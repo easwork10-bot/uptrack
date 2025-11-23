@@ -311,24 +311,37 @@ export default function EmployeePage() {
             )}
 
             {/* ORDER FORM */}
+            {/* ORDER FORM */}
             <form className="order-form" onSubmit={submitUpsells}>
               <input
                 type="text"
                 className="order-input"
-                placeholder="Ordernummer"
+                placeholder="Ordernummer (2 siffror)"
                 value={orderNumber}
-                onChange={(e) => setOrderNumber(e.target.value)}
+                onChange={(e) => {
+                  let value = e.target.value;
+
+                  // Allow only numbers
+                  value = value.replace(/\D/g, "");
+
+                  // Max 2 digits
+                  if (value.length > 2) value = value.slice(0, 2);
+
+                  setOrderNumber(value);
+                }}
               />
 
               <button
                 className="submit-btn"
-                disabled={!orderNumber.trim() || cart.length === 0}
+                disabled={cart.length === 0 || !/^\d{2}$/.test(orderNumber)}
               >
                 Registrera upsells
               </button>
 
+              {/* Error message */}
               {message && <p className="msg">{message}</p>}
             </form>
+
           </div>
         </div>
 
