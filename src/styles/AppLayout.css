@@ -1,0 +1,65 @@
+:root {
+  --mc-yellow: #ffcc00;
+  --mc-yellow-light: #ffe580;
+  --mc-red: #f22c00;
+  --radius: 18px;
+  --shadow: 0 6px 18px rgba(0, 0, 0, 0.15);
+  --font: "Inter", sans-serif;
+}
+
+/* PAGE BACKGROUND */
+.home-wrapper {
+  min-height: 100vh;
+  display: flex;
+  justify-content: center;     /* horizontal center */
+  align-items: center;         /* vertical center */
+  background: var(--mc-yellow);
+  font-family: var(--font);
+}
+
+/* CARD */
+.home-card {
+  width: 90%;
+  max-width: 450px;
+  padding: 3rem 2rem;
+  background: var(--mc-red);
+  color: white;
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  text-align: center;
+  border: 4px solid white;
+}
+
+/* TITLE */
+.home-title {
+  font-size: 3rem;
+  font-weight: 900;
+  margin-bottom: 0.5rem;
+}
+
+/* SUBTITLE */
+.home-subtitle {
+  font-size: 1.1rem;
+  margin-bottom: 2rem;
+  opacity: 0.9;
+}
+
+/* BUTTON */
+.home-btn {
+  width: 100%;
+  padding: 1rem;
+  font-size: 1.2rem;
+  font-weight: 700;
+  border-radius: 40px;   /* rounder */
+  border: none;
+  background: white;
+  color: var(--mc-red);
+  cursor: pointer;
+  transition: 0.25s;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.2);
+}
+
+.home-btn:hover {
+  background: var(--mc-yellow-light);
+  transform: translateY(-3px);
+}

@@ -1,0 +1,180 @@
+/* ============================================================
+   MANAGER DASHBOARD — Clean Professional Layout
+   Matches Employee UI design
+============================================================ */
+
+.manager-page {
+  background: #ffffff;
+  min-height: 100vh;
+  font-family: "Inter", sans-serif;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ============================================================
+   TOPBAR
+============================================================ */
+.topbar {
+  height: 58px;
+  background: #f22c00;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 3rem;
+  color: white;
+  font-weight: 600;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+}
+
+.logo {
+  font-size: 1.5rem;
+  font-weight: 700;
+}
+
+.user-box {
+  display: flex;
+  align-items: center;
+  background: white;
+  padding: 6px 12px;
+  border-radius: 10px;
+  gap: 10px;
+  border: 1px solid #ddd;
+  color: #333;
+}
+
+.logout-btn {
+  background: #ffefef;
+  color: #e40000;
+  border: 1px solid #ffb2b2;
+  padding: 5px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 0.85rem;
+}
+
+/* ============================================================
+   WRAPPER LAYOUT
+============================================================ */
+.manager-container {
+  width: 100%;
+  max-width: 1200px;
+  margin: 1.5rem auto;
+  display: grid;
+  grid-template-columns: 1fr 350px;
+  gap: 1.5rem;
+  padding: 0 1rem;
+}
+
+.left-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 1.3rem;
+}
+
+/* ============================================================
+   CARD SECTIONS
+============================================================ */
+.section {
+  background: #ffffff;
+  border-radius: 14px;
+  padding: 1.2rem;
+  border: 1px solid #ececec;
+}
+
+.shadow {
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.06);
+}
+
+.section-title {
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: #d07a00;
+  margin-bottom: 0.6rem;
+}
+
+/* ============================================================
+   STAT GRID
+============================================================ */
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 0.6rem;
+}
+
+.stat-card {
+  background: #fff8dd;
+  border: 1px solid #f3e3b5;
+  border-radius: 10px;
+  padding: 14px;
+  text-align: center;
+}
+
+.stat-label {
+  font-size: 0.85rem;
+  color: #8a6b00;
+}
+
+.stat-value {
+  font-size: 1.35rem;
+  font-weight: 700;
+}
+
+/* ============================================================
+   TABLES
+============================================================ */
+.upsell-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.upsell-table th,
+.upsell-table td {
+  padding: 6px 8px;
+  border-bottom: 1px solid #eee;
+}
+
+.upsell-table th {
+  background: #fff4d0;
+  color: #8a6b00;
+  font-weight: 700;
+}
+
+/* ============================================================
+   RIGHT PANEL
+============================================================ */
+.right-panel {
+  position: relative;
+  height: fit-content;
+}
+
+/* ============================================================
+   RESPONSIVE — iPad-first
+============================================================ */
+@media (min-width: 700px) and (max-width: 1366px) {
+  .manager-container {
+    grid-template-columns: 1fr 330px;
+    gap: 1.2rem;
+  }
+
+  .topbar {
+    padding: 0 2rem;
+  }
+
+  .section {
+    padding: 1rem;
+  }
+}
+
+/* ============================================================
+   MOBILE PHONES
+============================================================ */
+@media (max-width: 600px) {
+  .manager-container {
+    grid-template-columns: 1fr;
+  }
+
+  .right-panel {
+    width: 100%;
+  }
+}
