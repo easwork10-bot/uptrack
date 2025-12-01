@@ -22,6 +22,8 @@ const ITEMS = [
   { id: "PLUS_MENU", name: "Plusmeny", icon: "🍔" },
   { id: "DIPSAUCE", name: "Dipsås", icon: "🧂" },
   { id: "COFFEE", name: "Kaffe", icon: "☕️" },
+  
+
 ];
 
 export default function EmployeePage() {
@@ -129,6 +131,15 @@ export default function EmployeePage() {
     setOrderNumber("");
     setCart([]);
   }
+    // fixed always visible number pad click handler
+  function handleNumberClick(num) {
+    if (orderNumber.length >= 2) return;
+    setOrderNumber((prev) => prev + num);
+  }
+
+  function handleDelete() {
+    setOrderNumber((prev) => prev.slice(0, -1));
+  }
 
   // -------------------------------------------------------
   // LOAD CLOCKED-IN EMPLOYEES
@@ -188,6 +199,7 @@ export default function EmployeePage() {
         PLUS_MENU: 0,
         DIPSAUCE: 0,
         COFFEE: 0,
+        
       };
     });
 
@@ -309,6 +321,24 @@ export default function EmployeePage() {
                 ))}
               </div>
             )}
+              {/* ALWAYS VISIBLE NUMBER PAD */}
+            <div className="numpad-container">
+              <div className="numpad-grid-inline">
+                {[1,2,3,4,5,6,7,8,9].map((n) => (
+                  <button
+                    key={n}
+                    className="numpad-key"
+                    onClick={() => handleNumberClick(n.toString())}
+                  >
+                    {n}
+                  </button>
+                ))}
+
+                <button className="numpad-key del" onClick={handleDelete}>⌫</button>
+                <button className="numpad-key" onClick={() => handleNumberClick("0")}>0</button>
+                <button className="numpad-key del" onClick={handleDelete}>Clear</button>
+              </div>
+            </div>
 
             {/* ORDER FORM */}
             {/* ORDER FORM */}
@@ -318,17 +348,8 @@ export default function EmployeePage() {
                 className="order-input"
                 placeholder="Ordernummer (2 siffror)"
                 value={orderNumber}
-                onChange={(e) => {
-                  let value = e.target.value;
-
-                  // Allow only numbers
-                  value = value.replace(/\D/g, "");
-
-                  // Max 2 digits
-                  if (value.length > 2) value = value.slice(0, 2);
-
-                  setOrderNumber(value);
-                }}
+                readOnly
+               
               />
 
               <button
