@@ -1,101 +1,154 @@
 import { useEffect, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
+import "../styles/Employee.css";
 
-export default function Leaderboard() {
+export default function LeaderboardPage() {
+  const [restaurantId, setRestaurantId] = useState(null);
+  const [menuItems, setMenuItems] = useState([]);
   const [leaderboard, setLeaderboard] = useState([]);
-  const [loadingLb, setLoadingLb] = useState(false);
+  const [loading, setLoading] = useState(false);
 
+  /* ============================================================
+     LOAD SESSION
+  ============================================================ */
+  useEffect(() => {
+    const rest = sessionStorage.getItem("restaurantId");
+
+    if (!rest) {
+      window.location.href = "/login";
+      return;
+    }
+
+    setRestaurantId(Number(rest));
+  }, []);
+
+  /* ============================================================
+     LOAD MENU FOR RESTAURANT
+  ============================================================ */
+  useEffect(() => {
+    if (!restaurantId) return;
+
+    (async () => {
+      const { data } = await supabase
+        .from("menu_items_2")
+        .select("*")
+        .eq("restaurant_id", restaurantId)
+        .eq("is_active", true);
+
+      setMenuItems(data || []);
+    })();
+  }, [restaurantId]);
+
+  /* ============================================================
+     LOAD LEADERBOARD
+  ============================================================ */
   async function loadLeaderboard() {
-    setLoadingLb(true);
+    if (!restaurantId) return;
+
+    setLoading(true);
 
     const start = new Date();
     start.setHours(0, 0, 0, 0);
 
-    const { data: active } = await supabase
-      .from("employees_clocked")
-      .select("name, clocked_in");
-
-    const activeNames = (active || [])
-      .filter(e => e.clocked_in)
-      .map(e => e.name);
-
-    const base = {};
-    activeNames.forEach(name => {
-      base[name] = {
-        name,
-        total: 0,
-        APPLE_PIE: 0,
-        PLUS_MENU: 0,
-        DIPSAUCE: 0,
-        COFFEE: 0,
-      };
-    });
-
     const { data: ups } = await supabase
-      .from("upsells")
-      .select("employee_name, item, created_at")
+      .from("upsells_2")
+      .select(`
+        id,
+        employee_id,
+        menu_item_id,
+        created_at,
+        employees_2:employee_id ( name ),
+        menu_items_2:menu_item_id ( name )
+      `)
+      .eq("restaurant_id", restaurantId)
       .gte("created_at", start.toISOString());
 
-    (ups || []).forEach(u => {
-      if (!base[u.employee_name]) return;
-      base[u.employee_name].total += 1;
+    const lb = {};
 
-      if (u.item === "Äpple paj") base[u.employee_name].APPLE_PIE++;
-      if (u.item === "Plusmeny") base[u.employee_name].PLUS_MENU++;
-      if (u.item === "Dipsås") base[u.employee_name].DIPSAUCE++;
-      if (u.item === "Kaffe") base[u.employee_name].COFFEE++;
+    (ups || []).forEach((u) => {
+      const emp = u.employees_2?.name;
+      const item = u.menu_items_2?.name;
+      if (!emp || !item) return;
+
+      if (!lb[emp]) lb[emp] = { name: emp, total: 0 };
+      lb[emp].total++;
+      lb[emp][item] = (lb[emp][item] || 0) + 1;
     });
 
-    setLeaderboard(Object.values(base).sort((a, b) => b.total - a.total));
-    setLoadingLb(false);
+    setLeaderboard(Object.values(lb).sort((a, b) => b.total - a.total));
+    setLoading(false);
   }
 
+  /* ============================================================
+     REALTIME UPDATES
+  ============================================================ */
   useEffect(() => {
+    if (!restaurantId) return;
+
     loadLeaderboard();
 
     const channel = supabase
-      .channel("leaderboard_only")
-      .on("postgres_changes", { event: "*", schema: "public", table: "upsells" }, loadLeaderboard)
-      .on("postgres_changes", { event: "*", schema: "public", table: "employees_clocked" }, loadLeaderboard)
+      .channel("leaderboard_updates")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "upsells_2" },
+        loadLeaderboard
+      )
       .subscribe();
 
     return () => supabase.removeChannel(channel);
-  }, []);
+  }, [restaurantId]);
 
+  /* ============================================================
+     RENDER
+  ============================================================ */
   return (
-    <div className="cart-panel">
-      <h4 className="cart-title">Leaderboard (idag)</h4>
+    <div className="employee-page">
+      {/* TOPBAR */}
+      <div className="topbar">
+        <span className="mclogo">🥇</span>
+        <div className="user-box">
+          <span>Leaderboard</span>
+        </div>
+      </div>
 
-      {loadingLb ? (
-        <p>Laddar...</p>
-      ) : leaderboard.length === 0 ? (
-        <p className="cart-empty">Inga uppsälj idag ännu.</p>
-      ) : (
-        <table className="leaderboard-table">
-          <thead>
-            <tr>
-              <th>Medarbetare</th>
-              <th>Totalt</th>
-              <th>Äpple</th>
-              <th>Plusmeny</th>
-              <th>Dipsås</th>
-              <th>Kaffe</th>
-            </tr>
-          </thead>
-          <tbody>
-            {leaderboard.map((row) => (
-              <tr key={row.name}>
-                <td>{row.name}</td>
-                <td>{row.total}</td>
-                <td>{row.APPLE_PIE}</td>
-                <td>{row.PLUS_MENU}</td>
-                <td>{row.DIPSAUCE}</td>
-                <td>{row.COFFEE}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
+      {/* MAIN CONTENT */}
+      <div className="content" style={{ maxWidth: "900px" }}>
+        <div className="cart-panel" style={{ width: "100%" }}>
+          <h4 className="cart-title">Leaderboard (idag)</h4>
+
+          {loading ? (
+            <p>Laddar...</p>
+          ) : leaderboard.length === 0 ? (
+            <p className="cart-empty">Inga upsells ännu.</p>
+          ) : (
+            <table className="leaderboard-table">
+              <thead>
+                <tr>
+                  <th>Medarbetare</th>
+                  <th>Totalt</th>
+                  {menuItems.map((item) => (
+                    <th key={item.id}>{item.name}</th>
+                  ))}
+                </tr>
+              </thead>
+
+              <tbody>
+                {leaderboard.map((row) => (
+                  <tr key={row.name}>
+                    <td>{row.name}</td>
+                    <td>{row.total}</td>
+
+                    {menuItems.map((item) => (
+                      <td key={item.id}>{row[item.name] || 0}</td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
