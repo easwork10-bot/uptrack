@@ -7,6 +7,7 @@ export default function EmployeePage() {
   const [employeeName, setEmployeeName] = useState(null);
   const [employeeId, setEmployeeId] = useState(null);
   const [restaurantId, setRestaurantId] = useState(null);
+  const [currentShiftId, setCurrentShiftId] = useState(null);
 
   /* ------------------ DATA ------------------ */
   const [menuItems, setMenuItems] = useState([]);
@@ -43,7 +44,7 @@ export default function EmployeePage() {
 
     (async () => {
       const { data } = await supabase
-        .from("menu_items_2")
+        .from("menu_items")
         .select("*")
         .eq("restaurant_id", restaurantId)
         .eq("is_active", true);
@@ -78,7 +79,28 @@ export default function EmployeePage() {
   }
 
   /* ============================================================
-     SUBMIT UPSELLS
+     GET CURRENT SHIFT
+  ============================================================ */
+  async function getCurrentShift() {
+    if (!employeeId) return null;
+
+    const { data, error } = await supabase
+      .from("employee_shifts")
+      .select("id")
+      .eq("employee_id", employeeId)
+      .is("clock_out_at", null)
+      .maybeSingle();
+
+    if (error) {
+      console.error("Error getting current shift:", error);
+      return null;
+    }
+
+    return data?.id;
+  }
+
+  /* ============================================================
+     SUBMIT ORDER
   ============================================================ */
   async function submitUpsells(e) {
     e.preventDefault();
@@ -88,22 +110,42 @@ export default function EmployeePage() {
       return setMessage("⚠️ Ordernummer måste vara 1–2 siffror och inte bara 0.");
     }
 
-    const rows = [];
-    cart.forEach((item) => {
-      for (let i = 0; i < item.qty; i++) {
-        rows.push({
-          restaurant_id: restaurantId,
-          employee_id: employeeId,
-          menu_item_id: item.id,
-          order_number: orderNumber,
-        });
-      }
-    });
+    const shiftId = await getCurrentShift();
+    if (!shiftId) {
+      return setMessage("❌ Ingen aktiv skift hittades. Stämpla in igen.");
+    }
 
-    const { error } = await supabase.from("upsells_2").insert(rows);
-    if (error) {
-      console.error(error);
-      return setMessage("❌ Fel vid registrering.");
+    // Create order first
+    const { data: order, error: orderError } = await supabase
+      .from("orders")
+      .insert({
+        restaurant_id: restaurantId,
+        employee_id: employeeId,
+        shift_id: shiftId,
+        order_number: orderNumber,
+      })
+      .select()
+      .single();
+
+    if (orderError || !order) {
+      console.error("Order creation error:", orderError);
+      return setMessage("❌ Fel vid skapande av beställning.");
+    }
+
+    // Create order items
+    const orderItems = cart.map((item) => ({
+      order_id: order.id,
+      menu_item_id: item.id,
+      quantity: item.qty,
+    }));
+
+    const { error: itemsError } = await supabase
+      .from("order_items")
+      .insert(orderItems);
+
+    if (itemsError) {
+      console.error("Order items creation error:", itemsError);
+      return setMessage("❌ Fel vid registrering av artiklar.");
     }
 
     setCart([]);
@@ -112,7 +154,7 @@ export default function EmployeePage() {
   }
 
   /* ============================================================
-     LEADERBOARD (ONLY CLOCKED-IN EMPLOYEES)
+     LEADERBOARD (ACTIVE SHIFTS ONLY)
   ============================================================ */
   async function loadLeaderboard() {
     if (!restaurantId) return;
@@ -122,15 +164,20 @@ export default function EmployeePage() {
     const start = new Date();
     start.setHours(0, 0, 0, 0);
 
-    // 1) Get all currently clocked-in employees
-    const { data: employees, error: empError } = await supabase
-      .from("employees_2")
-      .select("id, name")
-      .eq("restaurant_id", restaurantId)
-      .eq("clocked_in", true);
+    // 1) Get all employees with active shifts (no date filter)
+    const { data: activeShifts, error: shiftError } = await supabase
+      .from("employee_shifts")
+      .select(`
+        employee_id,
+        employees:employee_id ( id, name, restaurant_id )
+      `)
+      .is("clock_out_at", null);
 
-    if (empError) {
-      console.error("Error loading employees:", empError);
+    console.log("Active shifts query result:", activeShifts);
+    console.log("Shift error:", shiftError);
+
+    if (shiftError) {
+      console.error("Error loading active shifts:", shiftError);
       setLoadingLb(false);
       return;
     }
@@ -138,160 +185,163 @@ export default function EmployeePage() {
     const activeById = {};
     const lbMap = {};
 
-    (employees || []).forEach((emp) => {
+    (activeShifts || []).forEach((shift) => {
+      const emp = shift.employees;
+      if (!emp || emp.restaurant_id !== restaurantId) return;
+      
       activeById[emp.id] = emp;
-      lbMap[emp.id] = { name: emp.name, total: 0 };
+      lbMap[emp.id] = { employee_id: emp.id, name: emp.name, total: 0 };
     });
 
-    if (!employees || employees.length === 0) {
+    if (!activeShifts || activeShifts.length === 0) {
       setLeaderboard([]);
       setLoadingLb(false);
       return;
     }
 
-    // 2) Get today's upsells
-    const { data: ups, error: upsError } = await supabase
-      .from("upsells_2")
+    // 2) Get today's orders (simplified query)
+    const { data: orders, error: ordersError } = await supabase
+      .from("orders")
       .select(`
-        id,
         employee_id,
-        menu_item_id,
-        created_at,
-        menu_items_2:menu_item_id ( name )
+        order_items (
+          quantity,
+          menu_items:menu_item_id ( name )
+        )
       `)
       .eq("restaurant_id", restaurantId)
       .gte("created_at", start.toISOString());
 
-    if (upsError) {
-      console.error("Error loading upsells:", upsError);
+    console.log("Orders query result:", orders);
+    console.log("Orders error:", ordersError);
+
+    if (ordersError) {
+      console.error("Error loading orders:", ordersError);
       setLoadingLb(false);
       return;
     }
 
-    // 3) Count upsells
-    (ups || []).forEach((u) => {
-      if (!activeById[u.employee_id]) return;
+    // 3) Count order items from active employees only
+    const activeEmployeeIds = new Set((activeShifts || []).map(s => s.employee_id));
+    console.log("Active employee IDs:", activeEmployeeIds);
+    
+    (orders || []).forEach((order) => {
+      if (!activeEmployeeIds.has(order.employee_id)) {
+        console.log("Skipping order from inactive employee:", order.employee_id);
+        return;
+      }
+      
+      const entry = lbMap[order.employee_id];
+      if (!entry) {
+        console.log("No entry found for employee:", order.employee_id);
+        return;
+      }
+      
+      (order.order_items || []).forEach((item) => {
+        const itemName = item.menu_items?.name;
+        if (!itemName) {
+          console.log("Skipping item with no name:", item);
+          return;
+        }
 
-      const itemName = u.menu_items_2?.name;
-      if (!itemName) return;
-
-      const entry = lbMap[u.employee_id];
-      entry.total += 1;
-      entry[itemName] = (entry[itemName] || 0) + 1;
+        entry.total += item.quantity;
+        entry[itemName] = (entry[itemName] || 0) + item.quantity;
+      });
     });
-
+    
     const rows = Object.values(lbMap).sort((a, b) => b.total - a.total);
+    console.log("Final leaderboard rows:", rows);
     setLeaderboard(rows);
     setLoadingLb(false);
   }
 
 
   /* ============================================================
+     SMOOTH REALTIME RELOAD
+  ============================================================ */
+  let reloadTimeout = null;
+
+  function scheduleReload() {
+    if (reloadTimeout) clearTimeout(reloadTimeout);
+    reloadTimeout = setTimeout(() => {
+      loadLeaderboard(); // No loading state for realtime
+    }, 300);
+  }
+
+  /* ============================================================
      REALTIME UPDATES
-     - Fixar att nya anställda dyker upp direkt (INSERT)
-     - Fixar live leaderboard när upsells ändras
-     - Fixar auto-logout när manager clockar ut anställd
-     - Inga refresh behövs längre
   ============================================================ */
   useEffect(() => {
     if (!restaurantId || !employeeId) return;
 
-    // Initial load
     loadLeaderboard();
+    getCurrentShift().then(setCurrentShiftId);
 
-    const channel = supabase.channel("employee_live_updates_" + restaurantId);
+    const channel = supabase.channel(
+      "employee_live_updates_" + restaurantId + "_" + employeeId
+    );
 
-    /* ------------------------------------------------------------
-       1) UPSALES CHANGES (INSERT, UPDATE, DELETE)
-       Live leaderboard whenever upsells change
-    ------------------------------------------------------------ */
     channel.on(
       "postgres_changes",
-      { event: "*", schema: "public", table: "upsells_2" },
+      { event: "*", schema: "public", table: "orders" },
       (payload) => {
-        // Only reload if upsell belongs to this restaurant
         if (
           payload.new?.restaurant_id === restaurantId ||
           payload.old?.restaurant_id === restaurantId
         ) {
-          loadLeaderboard();
+          scheduleReload();
         }
       }
     );
 
-    /* ------------------------------------------------------------
-       2) EMPLOYEE INSERT (NEW PERSON CLOCKS IN FIRST TIME)
-       🔥 Fixar ditt problem — nu syns nya direkt utan refresh!
-    ------------------------------------------------------------ */
     channel.on(
       "postgres_changes",
-      { event: "INSERT", schema: "public", table: "employees_2" },
-      (payload) => {
-        const newEmp = payload.new;
-
-        // Only if new employee belongs to same restaurant
-        if (newEmp.restaurant_id === restaurantId && newEmp.clocked_in === true) {
-          loadLeaderboard();
-        }
-      }
+      { event: "*", schema: "public", table: "order_items" },
+      scheduleReload
     );
 
-    /* ------------------------------------------------------------
-       3) EMPLOYEE UPDATE (CLOCK OUT, NAME CHANGE, etc)
-       - Uppdaterar leaderboard live
-       - Auto-logout om du själv blir utloggad av manager
-    ------------------------------------------------------------ */
     channel.on(
       "postgres_changes",
-      { event: "UPDATE", schema: "public", table: "employees_2" },
-      (payload) => {
-        const updated = payload.new;
+      { event: "*", schema: "public", table: "employee_shifts" },
+      async () => {
+        const newShiftId = await getCurrentShift();
 
-        // Auto logout if you were clocked out by a manager
-        if (updated.id === employeeId && updated.clocked_in === false) {
+        if (!newShiftId) {
           sessionStorage.clear();
           window.location.href = "/login";
           return;
         }
 
-        // If another employee at same restaurant changed → reload
-        if (updated.restaurant_id === restaurantId) {
-          loadLeaderboard();
-        }
+        setCurrentShiftId(newShiftId);
+        scheduleReload();
       }
     );
 
-    /* ------------------------------------------------------------
-       4) EMPLOYEE DELETE (if you ever add delete feature)
-       Ensures leaderboard updates instantly
-    ------------------------------------------------------------ */
-    channel.on(
-      "postgres_changes",
-      { event: "DELETE", schema: "public", table: "employees_2" },
-      (payload) => {
-        const oldEmp = payload.old;
-
-        if (oldEmp.restaurant_id === restaurantId) {
-          loadLeaderboard();
-        }
-      }
-    );
-
-    // Subscribe & cleanup
     channel.subscribe();
     return () => supabase.removeChannel(channel);
-  }, [restaurantId, employeeId]);
+  }, [restaurantId]);
 
 
 
   /* ============================================================
-     CLOCK OUT (manual user logout)
+     CLOCK OUT (close current shift)
   ============================================================ */
   async function clockOut() {
-    await supabase
-      .from("employees_2")
-      .update({ clocked_in: false })
-      .eq("id", employeeId);
+    const shiftId = await getCurrentShift();
+    if (!shiftId) {
+      sessionStorage.clear();
+      window.location.href = "/login";
+      return;
+    }
+
+    const { error } = await supabase
+      .from("employee_shifts")
+      .update({ clock_out_at: new Date().toISOString() })
+      .eq("id", shiftId);
+
+    if (error) {
+      console.error("Clock out error:", error);
+    }
 
     sessionStorage.clear();
     window.location.href = "/login";
@@ -452,7 +502,7 @@ export default function EmployeePage() {
               </thead>
               <tbody>
                 {leaderboard.map((row) => (
-                  <tr key={row.name}>
+                  <tr key={row.employee_id || row.name}>
                     <td>{row.name}</td>
                     <td>{row.total}</td>
                     {menuItems.map((item) => (

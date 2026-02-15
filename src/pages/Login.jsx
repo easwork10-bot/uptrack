@@ -4,11 +4,17 @@ import { supabase } from "../lib/supabaseClient";
 import "../styles/Login.css";
 
 export default function Login() {
+  /* ============================================================
+     EMPLOYEE STATE
+  ============================================================ */
   const [employeeName, setEmployeeName] = useState("");
   const [employeeMessage, setEmployeeMessage] = useState("");
   const [restaurants, setRestaurants] = useState([]);
   const [selectedRestaurant, setSelectedRestaurant] = useState("");
 
+  /* ============================================================
+     MANAGER STATE
+  ============================================================ */
   const [showManager, setShowManager] = useState(false);
   const [managerUsername, setManagerUsername] = useState("");
   const [managerPassword, setManagerPassword] = useState("");
@@ -16,62 +22,114 @@ export default function Login() {
 
   const navigate = useNavigate();
 
-  /* ---------------- Load restaurants ---------------- */
+  /* ============================================================
+     LOAD RESTAURANTS (MCD ONLY)
+  ============================================================ */
   useEffect(() => {
     (async () => {
-      const { data } = await supabase
-        .from("restaurants_2")
-        .select("id, name");
+      const { data, error } = await supabase
+        .from("restaurants")
+        .select("id, name")
+        .order("id");
+
+      if (error) {
+        console.error("Restaurant load error:", error);
+        return;
+      }
 
       setRestaurants(data || []);
       if (data?.length === 1) setSelectedRestaurant(data[0].id);
     })();
   }, []);
 
-  /* ---------------- Employee login ---------------- */
+  /* ============================================================
+     EMPLOYEE CLOCK-IN
+  ============================================================ */
   async function handleClockIn(e) {
     e.preventDefault();
     setEmployeeMessage("");
 
     const name = employeeName.trim();
-    if (!name) return setEmployeeMessage("⚠️ Skriv ditt namn.");
-    if (!selectedRestaurant) return setEmployeeMessage("⚠️ Välj restaurang.");
+
+    if (!name) {
+      setEmployeeMessage("⚠️ Skriv ditt namn.");
+      return;
+    }
+
+    if (!selectedRestaurant) {
+      setEmployeeMessage("⚠️ Välj restaurang.");
+      return;
+    }
 
     let employeeId;
 
-    // Check if exists
-    const { data: existing } = await supabase
-      .from("employees_2")
+    // 1) Check if employee already exists at restaurant
+    const { data: existing, error: findError } = await supabase
+      .from("employees")
       .select("id")
       .eq("name", name)
       .eq("restaurant_id", selectedRestaurant)
       .maybeSingle();
 
+    if (findError) {
+      console.error("Employee lookup error:", findError);
+      setEmployeeMessage("❌ Fel vid inloggning.");
+      return;
+    }
+
     if (existing) {
       employeeId = existing.id;
-      await supabase
-        .from("employees_2")
-        .update({
-          clocked_in: true,
-          clocked_at: new Date().toISOString(),
-        })
-        .eq("id", employeeId);
+
+      // Create new shift record
+      const { error: shiftError } = await supabase
+        .from("employee_shifts")
+        .insert({
+          employee_id: employeeId,
+          restaurant_id: selectedRestaurant,
+          clock_in_at: new Date().toISOString(),
+        });
+
+      if (shiftError) {
+        console.error("Shift creation error:", shiftError);
+        setEmployeeMessage("❌ Kunde inte stämpla in.");
+        return;
+      }
     } else {
-      const { data: created } = await supabase
-        .from("employees_2")
+      // Create new employee
+      const { data: created, error } = await supabase
+        .from("employees")
         .insert({
           name,
           restaurant_id: selectedRestaurant,
-          clocked_in: true,
-          clocked_at: new Date().toISOString(),
         })
         .select()
         .single();
 
+      if (error || !created) {
+        console.error("Employee create error:", error);
+        setEmployeeMessage("❌ Kunde inte skapa användare.");
+        return;
+      }
+
       employeeId = created.id;
+
+      // Create shift for new employee
+      const { error: shiftError } = await supabase
+        .from("employee_shifts")
+        .insert({
+          employee_id: employeeId,
+          restaurant_id: selectedRestaurant,
+          clock_in_at: new Date().toISOString(),
+        });
+
+      if (shiftError) {
+        console.error("Shift creation error:", shiftError);
+        setEmployeeMessage("❌ Kunde inte stämpla in.");
+        return;
+      }
     }
 
-    // Save session PER TAB
+    // Save session (PER TAB, EXACTLY LIKE OLD CODE)
     sessionStorage.setItem("employeeName", name);
     sessionStorage.setItem("employeeId", employeeId);
     sessionStorage.setItem("restaurantId", selectedRestaurant);
@@ -79,29 +137,44 @@ export default function Login() {
     navigate("/employee");
   }
 
-  /* ---------------- Manager login ---------------- */
+  /* ============================================================
+     MANAGER LOGIN
+  ============================================================ */
   async function handleManagerLogin() {
     setManagerError("");
 
+    if (!managerUsername || !managerPassword) {
+      setManagerError("⚠️ Fyll i alla fält.");
+      return;
+    }
+
     const { data: manager, error } = await supabase
-  .from("branch_managers_2")
-  .select("id, username, password_hash")
-  .eq("username", managerUsername.trim())
-  .single();
+      .from("branch_managers")
+      .select("id, username, password, restaurant_id")
+      .eq("username", managerUsername.trim())
+      .maybeSingle();
 
+    if (error || !manager) {
+      setManagerError("❌ Fel användarnamn.");
+      return;
+    }
 
-    if (error || !manager) return setManagerError("❌ Fel användarnamn.");
-
-    if (managerPassword !== manager.password_hash)
-      return setManagerError("❌ Fel lösenord.");
+    // Simple password check (as before)
+    if (managerPassword !== manager.password) {
+      setManagerError("❌ Fel lösenord.");
+      return;
+    }
 
     sessionStorage.setItem("manager_is_admin", "true");
     sessionStorage.setItem("manager_username", manager.username);
-
+    sessionStorage.setItem("manager_restaurant_id", manager.restaurant_id);
 
     navigate("/manager");
   }
 
+  /* ============================================================
+     RENDER
+  ============================================================ */
   return (
     <div className="login-wrapper">
       <div className="login-left">
@@ -109,8 +182,7 @@ export default function Login() {
       </div>
 
       <div className="login-box">
-
-        {/* EMPLOYEE FORM */}
+        {/* ================= EMPLOYEE ================= */}
         <form className="login-form" onSubmit={handleClockIn}>
           <input
             className="login-input"
@@ -139,7 +211,7 @@ export default function Login() {
           )}
         </form>
 
-        {/* MANAGER AREA */}
+        {/* ================= MANAGER ================= */}
         <div className="manager-section">
           {!showManager ? (
             <button
